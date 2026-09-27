@@ -37,3 +37,11 @@ public class Piece
 
     public override string ToString() => Mark.ToString();
 }
+
+public class NumberPiece : Piece
+{
+    public NumberPiece(int value) : base(value) { }
+
+    public override string ToString() => Value.ToString();
+
+}

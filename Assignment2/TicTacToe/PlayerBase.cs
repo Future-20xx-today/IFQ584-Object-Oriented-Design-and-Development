@@ -5,8 +5,9 @@ namespace TicTacToe;
 /// every player — just a name — so concrete players only need to supply their
 /// move-selection strategy in <see cref="GetMove"/>.
 ///
-/// A player only chooses where to move (a board and a cell); what gets placed
-/// there is decided by the game.
+/// Players no longer own a set of numbers: numbers are played in order and
+/// shared between the players (see <see cref="Game.NextNumber"/>), so a move is
+/// only a choice of cell.
 ///
 /// This class does not itself declare <see cref="IPlayer"/>; each concrete
 /// player implements that interface, using the members provided here to satisfy
@@ -29,11 +30,11 @@ public abstract class PlayerBase
     }
 
     /// <summary>
-    /// Chooses this player's next move (a board and a cell) given the game's
-    /// boards. Each concrete player (human, computer, ...) provides its own
-    /// implementation. The returned move is validated by the game, not here.
+    /// Chooses this player's next move (a cell) given the current board. Each
+    /// concrete player (human, computer, ...) provides its own implementation.
+    /// The returned move is validated by the game loop, not here.
     /// </summary>
-    public abstract Placement GetMove(IReadOnlyList<IBoard> boards);
+    public abstract Move GetMove(Board board);
 
     public override string ToString() => Name;
 }

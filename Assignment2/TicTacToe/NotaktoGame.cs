@@ -18,32 +18,29 @@ public sealed class NotaktoGame : Game, IGame
         throw new NotImplementedException();
     }
 
-    private bool IsDead(Board board)
+    private bool IsDead(Board b)
     {
         throw new NotImplementedException();
     }
 
-    protected override bool IsLegal(Placement placement)
+    public bool IsLegal(Placement p)
     {
         throw new NotImplementedException();
     }
 
-    protected override MoveOutcome PlayMove(Placement placement)
+    public MoveOutcome PlayMove(Placement p)
     {
         throw new NotImplementedException();
-    }
-
-    public void Help()
-    {
-        Console.WriteLine("Both players play X on three 3x3 boards (numbered 0 to 2).");
-        Console.WriteLine("A board with three in a row is dead and can't be played on.");
-        Console.WriteLine("Whoever kills the last board loses.");
-        Console.WriteLine("Enter moves as \"board row column\", e.g. \"0 1 2\".");
-        Console.WriteLine();
     }
 
     private static bool IsMatch(Board board, (int Row, int Column)[] line)
     {
         throw new NotImplementedException();
     }
+
+    public void Apply(Placement p)
+    {
+        throw new NotImplementedException();
+    }
+
 }

@@ -18,32 +18,43 @@ public class Computer : PlayerBase, IPlayer
     {
     }
 
+    public PlayerKind Kind => PlayerKind.Computer; // Sets player as computer for save / load logic
+
     /// <summary>
     /// Chooses the computer's next move: an immediately winning cell if it can
-    /// find one, otherwise a random empty cell on a random board that has room.
+    /// find one, otherwise a random empty cell.
     ///
     /// Assumes the game is not already over — that there is at least one empty
     /// cell — which the game loop checks before asking for a move.
     /// </summary>
-    public override Placement GetMove(IReadOnlyList<IBoard> boards)
+    public override Move GetMove(Board board)
     {
-        // Only a board with an empty cell can take a move.
-        int[] open = Enumerable.Range(0, boards.Count).Where(i => !boards[i].IsFull()).ToArray();
-        int boardIndex = open[Random.Shared.Next(open.Length)];
-        var cells = boards[boardIndex].EmptyCells().ToList();
+        var cells = board.EmptyCells().ToList();
 
-        // TODO: Board.IsWinningMove no longer exists - win check moves to GameVariant //
-        // foreach ((int row, int column) in cells)
-        // {
-        //     if (board.IsWinningMove(row, column, number))
-        //     {
-        //         return new Move(row, column, number);
-        //     }
-        // }
+        // The number is the board's next number, so the computer only chooses the
+        // cell. Look for a cell where playing it wins on the spot: it completes a
+        // line adding up to the target sum.
+        int number = board.NextNumber;
 
-        // No winning cell, so play in a random empty cell. The game supplies the piece.
+        // No winning cell, so play the number in a random empty cell.
         (int Row, int Column) cell = cells[Random.Shared.Next(cells.Count)];
 
-        return new Placement(cell.Row, cell.Column, 0, boardIndex);
+        return new Move(cell.Row, cell.Column, number);
     }
+
+    // Computer win checker and taker, if available. //
+    public Placement ChoosePlacement(IGameView game, Move cell)
+    {
+        IReadOnlyList<Placement> options = game.CandidateMoves();
+
+        foreach (Placement p in options)
+        {
+            if (game.Preview(p) == MoveOutcome.CurrentPlayerWins)
+                return p; // computer take the win if this is availabe
+        }
+
+        return options[Random.Shared.Next(options.Count)]; // or else play random move
+
+    }
+
 }

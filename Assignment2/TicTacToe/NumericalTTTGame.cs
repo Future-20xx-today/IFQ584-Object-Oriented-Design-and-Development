@@ -1,6 +1,3 @@
-using System.Drawing;
-using System.Numerics;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace TicTacToe;
 
@@ -12,74 +9,56 @@ namespace TicTacToe;
 public sealed class NumericalTTTGame : Game, IGame
 {
     public NumberLists Numbers { get; }
-    public int _selectedNumber;
+    //public int SelectedNumber { get; private set; }
     public NumericalTTTGame(IPlayer playerOne, IPlayer playerTwo, int size = 3)
         : base(playerOne, playerTwo, new Board(size))
     {
         Numbers = new NumberLists(Boards[0].Size, playerOne);
-        Console.WriteLine("You are playing NEW Numerical TTT");
-
-        IPlayer currentPlayer = MoveCount % 2 == 0 ? PlayerOne : PlayerTwo;
-        int number = AskForNumber(currentPlayer, Boards[0]);
     }
 
 
-    public int AskForNumber(IPlayer player, IBoard board)
-    {
-        int turnValue; 
-
-        Console.WriteLine("What number value do you want?");
-        while (true)
-        {
-            Console.WriteLine("Available numbers are " + string.Join(", ", Numbers.GetPlayerList(player)));
-            string input = Console.ReadLine();
-
-            if (int.TryParse(input, out turnValue) && turnValue > 0 && Numbers.UsedNumbers(player, turnValue))  // Check whether is an int, and whether in correct range // 
-                break; //The loop ends on true
-            Console.WriteLine("Incorrect value, try again.");
-        }
-        _selectedNumber = turnValue;
-        return turnValue;
-    }
-    
 
     public override GameType Type => GameType.NumericalTicTacToe;
-    
-    protected override bool IsLegal(Placement placement)
+
+
+    /// <summary>
+    /// Provides every legal move (vacant square and available value) a player can make
+    /// </summary>
+    /// <returns></returns>
+    public override IReadOnlyList<Placement> CandidateMoves()
+
     {
-        IBoard board = Boards[placement.BoardIndex];
-        return board.GetCell(placement.Row, placement.Column) is null; // true ( legal)  only if the cell is empty
+        Board board = Boards[0];
+        List<int> numbers = Numbers.GetPlayerList(CurrentPlayer);
+
+        return board.EmptyCells()
+            .SelectMany(c => numbers.Select(n => new Placement(c.Row, c.Column, n)))
+            .ToList();
+    }
+    public bool IsLegal(Placement p)
+    {
+        Board board = Boards[p.BoardIndex];
+        return board.GetCell(p.Row, p.Column) is null
+            && Numbers.GetPlayerList(CurrentPlayer).Contains(p.SelectedNumber); ; // true ( legal)  only if the cell is empty
 
     }
 
-    protected override MoveOutcome PlayMove(Placement placement)
+    public MoveOutcome PlayMove(Placement p) => Evaluate(p) ;
+         
+
+    public void Apply(Placement p)
     {
-        throw new NotImplementedException();
+        Board board = Boards[p.BoardIndex];
+        board.PlacePiece(p.Row, p.Column, new NumberPiece(p.SelectedNumber));
+        Numbers.UsedNumbers(CurrentPlayer, p.SelectedNumber);
     }
 
-    public void Help()
-    {
-        // TargetSum and HighestNumber are Numerical-only, so they live on the concrete Board. //
-        Board board = (Board)Boards[0];
+    protected override void Unapply(Placement p) =>
+    Numbers.ReturnNumber(CurrentPlayer, p.SelectedNumber);
 
-        Console.WriteLine($"Board size: {board.Size}x{board.Size}, using the numbers 1 to {board.HighestNumber}");
-        Console.WriteLine(
-            $"Complete a row, column or diagonal of {board.Size} numbers adding up to " +
-            $"{board.TargetSum} to win.");
-        Console.WriteLine($"Rows and columns are numbered from 0 to {board.Size - 1}.");
-        Console.WriteLine();
-    }
-
-    public void Apply(Placement placement)
+    public MoveOutcome Evaluate(Placement p)
     {
-        IBoard board = Boards[placement.BoardIndex];
-        board.PlacePiece(placement.Row, placement.Column, new Piece(_selectedNumber));
-    }
-
-    public MoveOutcome Evaluate(Placement placement)
-    {
-        // TargetSum is Numerical-only, so it lives on the concrete Board. //
-        Board board = (Board)Boards[placement.BoardIndex];
+        Board board = Boards[p.BoardIndex];
 
         if (Lines(board, board.Size).Any(line => IsMatch(board, line)))
         {
@@ -108,12 +87,12 @@ public sealed class NumericalTTTGame : Game, IGame
 
         return sum == board.TargetSum;
     }
+
 }
 
 public class NumberLists // Number Lists Class //
 {
     private readonly IPlayer _playerOne;
-    
     public List<int> PlayerOneList { get; } //player one list (evens)
     public List<int> PlayerTwoList { get; } //player two list (odds)
     public List<int> GetPlayerList(IPlayer player) => player == _playerOne ? PlayerOneList : PlayerTwoList;
@@ -141,6 +120,17 @@ public class NumberLists // Number Lists Class //
         }
         else return false; // Not able to use this number ( already used)
     }
+
+    public void ReturnNumber(IPlayer player, int number)
+    {
+        List<int> list = GetPlayerList(player);
+        if(!list.Contains(number))
+        {
+            list.Add(number);
+            list.Sort();
+        }
+    }
+
 
     void ShowHelp()
     {
