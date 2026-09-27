@@ -24,7 +24,7 @@ public sealed class NumericalTTTGame : Game, IGame
     }
 
 
-public int AskForNumber(IPlayer player, Board board)
+    public int AskForNumber(IPlayer player, IBoard board)
     {
         int turnValue; 
 
@@ -44,27 +44,42 @@ public int AskForNumber(IPlayer player, Board board)
     
 
     public override GameType Type => GameType.NumericalTicTacToe;
-    public bool IsLegal(Placement p)
+    
+    protected override bool IsLegal(Placement placement)
     {
-        Board board = Boards[p.BoardIndex];
-        return board.GetCell(p.Row, p.Column) is null; // true ( legal)  only if the cell is empty
+        IBoard board = Boards[placement.BoardIndex];
+        return board.GetCell(placement.Row, placement.Column) is null; // true ( legal)  only if the cell is empty
 
     }
 
-    public MoveOutcome PlayMove(Placement p)
+    protected override MoveOutcome PlayMove(Placement placement)
     {
         throw new NotImplementedException();
     }
 
-    public void Apply(Placement p)
+    public void Help()
     {
-        Board board = Boards[p.BoardIndex];
-        board.PlacePiece(p.Row, p.Column, new Piece(_selectedNumber));
+        // TargetSum and HighestNumber are Numerical-only, so they live on the concrete Board. //
+        Board board = (Board)Boards[0];
+
+        Console.WriteLine($"Board size: {board.Size}x{board.Size}, using the numbers 1 to {board.HighestNumber}");
+        Console.WriteLine(
+            $"Complete a row, column or diagonal of {board.Size} numbers adding up to " +
+            $"{board.TargetSum} to win.");
+        Console.WriteLine($"Rows and columns are numbered from 0 to {board.Size - 1}.");
+        Console.WriteLine();
     }
 
-    public MoveOutcome Evaluate(Placement p)
+    public void Apply(Placement placement)
     {
-        Board board = Boards[p.BoardIndex];
+        IBoard board = Boards[placement.BoardIndex];
+        board.PlacePiece(placement.Row, placement.Column, new Piece(_selectedNumber));
+    }
+
+    public MoveOutcome Evaluate(Placement placement)
+    {
+        // TargetSum is Numerical-only, so it lives on the concrete Board. //
+        Board board = (Board)Boards[placement.BoardIndex];
 
         if (Lines(board, board.Size).Any(line => IsMatch(board, line)))
         {
@@ -98,6 +113,7 @@ public int AskForNumber(IPlayer player, Board board)
 public class NumberLists // Number Lists Class //
 {
     private readonly IPlayer _playerOne;
+    
     public List<int> PlayerOneList { get; } //player one list (evens)
     public List<int> PlayerTwoList { get; } //player two list (odds)
     public List<int> GetPlayerList(IPlayer player) => player == _playerOne ? PlayerOneList : PlayerTwoList;

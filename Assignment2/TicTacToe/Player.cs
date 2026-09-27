@@ -15,17 +15,21 @@ public class Player : PlayerBase, IPlayer
 
     /// <summary>
     /// Prompts this human player for a move at the console.
-    /// Expects a "row column" pair, both 0-based; the number to place is the
-    /// game's next number, so the player only chooses the cell. Keeps asking
-    /// until the input parses. Legality against the board is checked by the game
-    /// loop, not here.
+    /// Expects a "row column" pair, both 0-based, with a board number in front
+    /// ("board row column") when the game has more than one board. The player
+    /// only chooses where; the game decides what is placed. Keeps asking until
+    /// the input parses. Legality is checked by the game, not here.
     /// </summary>
-    public override Move GetMove(Board board)
+    public override Placement GetMove(IReadOnlyList<IBoard> boards)
     {
+        bool chooseBoard = boards.Count > 1;
+        string format = chooseBoard ? "board row column" : "row column";
+        string example = chooseBoard ? "0 1 2" : "1 2";
+
         while (true)
         {
-            Console.WriteLine($"{Name}'s turn. You play the number ///{board.NextNumber}///.");
-            Console.Write("Enter your move as \"row column\": ");
+            Console.WriteLine($"{Name}'s turn.");
+            Console.Write($"Enter your move as \"{format}\": ");
             string? line = Console.ReadLine();
 
             // Console.ReadLine returns null at end of input (e.g. Ctrl-D, or a
@@ -41,16 +45,18 @@ public class Player : PlayerBase, IPlayer
             var parts = line.Split(
                 new[] { ' ', ',' }, StringSplitOptions.RemoveEmptyEntries);
 
-            if (parts is { Length: 2 } &&
-                int.TryParse(parts[0], out int row) &&
-                int.TryParse(parts[1], out int column))
+            int[] numbers = parts.Select(part => int.TryParse(part, out int n) ? n : -1).ToArray();
+            int expected = chooseBoard ? 3 : 2;
+
+            if (numbers.Length == expected && numbers.All(n => n >= 0))
             {
-                // The player chooses only the cell; the board's next number is
-                // what gets placed.
-                return new Move(row, column, board.NextNumber);
+                // The player chooses only where; the game supplies the piece.
+                return chooseBoard
+                    ? new Placement(numbers[1], numbers[2], 0, numbers[0])
+                    : new Placement(numbers[0], numbers[1], 0);
             }
 
-            Console.WriteLine("Please enter two numbers, e.g. \"1 2\".");
+            Console.WriteLine($"Please enter {expected} numbers, e.g. \"{example}\".");
         }
     }
 }

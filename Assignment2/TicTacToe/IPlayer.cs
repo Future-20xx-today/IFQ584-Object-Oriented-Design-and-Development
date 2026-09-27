@@ -1,13 +1,6 @@
 namespace TicTacToe;
 
 /// <summary>
-/// A single move: the number being played, and the row and column to play it in.
-/// The number is decided by the game (moves are numbered in order), not chosen
-/// by the player.
-/// </summary>
-public readonly record struct Move(int Row, int Column, int Number);
-
-/// <summary>
 /// A participant in a game of Numerical Tic Tac Toe.
 /// </summary>
 public interface IPlayer
@@ -18,10 +11,10 @@ public interface IPlayer
     string Name { get; }
 
     /// <summary>
-    /// Chooses the next move (a cell) for this player given the current board.
-    /// The returned cell is not guaranteed to be legal; the caller (the game
-    /// loop) is responsible for validating it against the board.
+    /// Chooses the next move for this player: which board, and which cell on it.
+    /// Any piece or number is decided by the game, not the player. The returned
+    /// placement is not guaranteed to be legal; the game validates it.
     /// </summary>
-    /// <param name="board">The board as it currently stands.</param>
-    Move GetMove(Board board);
+    /// <param name="boards">The game's boards as they currently stand.</param>
+    Placement GetMove(IReadOnlyList<IBoard> boards);
 }

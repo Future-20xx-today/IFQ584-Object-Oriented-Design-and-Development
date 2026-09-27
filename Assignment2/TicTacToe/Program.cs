@@ -11,18 +11,13 @@ using TicTacToe;
 
 // Start a brand new game, or pick up a saved one from disk.
 IGame game = ChooseLoadGame() ? LoadGame() : NewGame();
-var board = game.Boards[0];
 
+// Program only talks to the game: each game type explains and draws itself.
 Console.WriteLine();
 Console.WriteLine($"You chose {game.Type}.");
 Console.WriteLine($"{game.PlayerOne} vs {game.PlayerTwo}");
-Console.WriteLine($"Board size: {board.Size}x{board.Size}, using the numbers 1 to {board.HighestNumber}");
-Console.WriteLine(
-    $"Complete a row, column or diagonal of {board.Size} numbers adding up to " +
-    $"{board.TargetSum} to win.");
-Console.WriteLine($"Rows and columns are numbered from 0 to {board.Size - 1}.");
-Console.WriteLine();
-Console.WriteLine(board);
+game.Help();
+game.Render();
 
 // Player 1 goes first in a new game; a loaded game resumes with whoever is due
 // to move. Turns then alternate.
@@ -38,12 +33,12 @@ while (true)
     {
         // An undo or redo happened: redraw and let the loop re-pick the player.
         Console.WriteLine();
-        Console.WriteLine(board);
+        game.Render();
         continue;
     }
 
     Console.WriteLine();
-    Console.WriteLine(board);
+    game.Render();
 
     // The game type decides what the move meant; the outcome is always from the
     // point of view of the player who just moved.
@@ -127,7 +122,7 @@ void ShowHelp()
 IGame NewGame()
 {
     GameType gameType = ChooseGameType();
-    int boardSize = ChooseBoardSize();
+    int boardSize = ChooseBoardSize(gameType);
     bool againstComputer = ChooseComputerOpponent();
 
     // Players are built through the factory, so this loop never names the concrete
@@ -248,7 +243,7 @@ TurnChoice AskTurnChoice()
 }
 
 // Ask the user for the game type ( Numerical Tic-Tac-Toe, Notakto or Gomoku)
-// input is a correct number that correspondes to a game type
+// input is a correct number that corresponds to a game type
 // Returns the chosen <see cref="GameType"/>
 
 static GameType ChooseGameType()
@@ -277,16 +272,27 @@ static GameType ChooseGameType()
 }
 
 
-// Ask the user for the board size (cells per side). Keeps asking until the
+// Ask the user for the board size (cells or lines per side) within the chosen
+// game's range. Notakto is always 3x3, so it isn't asked. Keeps asking until the
 // input is a whole number within the supported range.
-int ChooseBoardSize()
+int ChooseBoardSize(GameType gameType)
 {
-    int min = GameSettings.Instance.MinBoardSize;
-    int max = GameSettings.Instance.MaxBoardSize;
+    GameSettings settings = GameSettings.Instance;
+
+    if (gameType == GameType.Notakto)
+    {
+        return 3;
+    }
+
+    (int min, int max, string hint) = gameType == GameType.Gomoku
+        ? (settings.GomokuMinBoardSize, settings.GomokuMaxBoardSize,
+            $"{settings.GomokuDefaultBoardSize} = standard Gomoku")
+        : (settings.MinBoardSize, settings.MaxBoardSize,
+            "3 = classic Numerical Tic Tac Toe");
 
     while (true)
     {
-        Console.Write($"Enter board size ({min}-{max}, 3 = classic Numerical Tic Tac Toe): ");
+        Console.Write($"Enter board size ({min}-{max}, {hint}): ");
 
         if (int.TryParse(Console.ReadLine()?.Trim(), out int size) &&
             size >= min && size <= max)
@@ -326,9 +332,8 @@ bool ChooseComputerOpponent()
 // played, or null when the human undid or redid a move instead (so the loop
 // should just redraw and carry on).
 //
-// Legality (the cell being on the board and empty, and the number being one the
-// player still holds) is enforced here so a bad move from either a human or the
-// computer re-prompts rather than crashing the game.
+// Legality is the game's job: a bad move from either a human or the computer
+// re-prompts inside game.TakeTurn rather than crashing the game.
 MoveOutcome? PlayTurn(IPlayer player)
 {
     // Before a human's move, offer to undo, redo, save or ask for help. The
@@ -359,42 +364,9 @@ MoveOutcome? PlayTurn(IPlayer player)
         }
     }
 
-    while (true)
-    {
-        Move move;
-        try
-        {
-            move = player.GetMove(board);
-        }
-        catch (Exception ex)
-        {
-            // A player may fail to produce a usable move.
-            Console.WriteLine($"Couldn't read a move ({ex.Message}). Trying again.");
-            continue;
-        }
-
-        if (!board.IsInBounds(move.Row, move.Column))
-        {
-            Console.WriteLine($"({move.Row}, {move.Column}) is off the board. Try again.");
-            continue;
-        }
-
-        // The game type decides what piece is played, so we only pass the cell.
-        // PlayMove places it, hands over the turn, and clears the redo history.
-        int number = move.Number;
-
-        // Placement placement = new Placement(move.row, move.column);
-        // MoveOutcome outcome = game.PlayMove(placement);
-
-        // if (outcome == MoveOutcome.Illegal)
-        // {
-        //     Console.WriteLine($"({move.Row}, {move.Column}) can't be played. Try again.");
-        //     continue;
-        // }
-
-        Console.WriteLine($"{player} plays {number} at ({move.Row}, {move.Column}).");
-        // return un;
-    }
+    // The game asks the player for a move, re-asks until it is legal, plays it
+    // and records it for undo.
+    return game.TakeTurn();
 }
 
 // What a human chose to do at the start of their turn.

@@ -7,9 +7,10 @@ namespace TicTacToe;
 /// or more boards: whose turn it is, the move history, undo/redo and saving.
 ///
 /// Playing a move follows the Template Method pattern: <see cref="Play"/> fixes
-/// the steps (check the cell, apply the move, record it, evaluate the result) and
-/// each concrete game supplies its own rules through <see cref="IsLegal"/>,
-/// <see cref="Apply"/> and <see cref="Evaluate"/>.
+/// the steps (check the cell, check the game's rules, record the move, play it)
+/// and each concrete game supplies its own rules by overriding
+/// <see cref="IsLegal"/> and <see cref="PlayMove"/>. Both are protected, so
+/// callers outside the game can only play through <see cref="TakeTurn"/>.
 ///
 /// This class does not itself declare <see cref="IGame"/>; each concrete game
 /// implements that interface, using the members provided here to satisfy it.
@@ -42,7 +43,7 @@ public abstract class Game
     /// <param name="playerOne">The first player.</param>
     /// <param name="playerTwo">The second player.</param>
     /// <param name="boards">The boards the game is played on; at least one.</param>
-    protected Game(IPlayer playerOne, IPlayer playerTwo, params Board[] boards)
+    protected Game(IPlayer playerOne, IPlayer playerTwo, params IBoard[] boards)
     {
         if (boards.Length == 0)
         {
@@ -58,9 +59,13 @@ public abstract class Game
     public abstract GameType Type { get; }
 
     /// <summary>The boards the game is played on. Most games have just one.</summary>
-    private readonly Board[] _boards;
-    
-    public IReadOnlyList<Board> Boards => _boards;
+    private readonly IBoard[] _boards;
+
+    /// <summary>
+    /// The boards, for the concrete games' rules. Not public: callers outside the
+    /// game go through <see cref="Render"/> and <see cref="TakeTurn"/> instead.
+    /// </summary>
+    protected IReadOnlyList<IBoard> Boards => _boards;
 
     /// <summary>Every move played so far, most recent on top.</summary>
     private readonly Stack<Placement> _history = new();
@@ -87,22 +92,32 @@ public abstract class Game
     /// </summary>
     internal MoveOutcome Play(Placement placement)
     {
-        // The rules live on IGame, which each concrete game implements. //
-        if (this is not IGame rules)
-        {
-            throw new InvalidOperationException($"{GetType().Name} must implement IGame.");
-        }
-
-        if (!IsOnAnEmptyCell(placement) || !rules.IsLegal(placement))
+        if (!IsOnAnEmptyCell(placement) || !IsLegal(placement))
         {
             return MoveOutcome.Illegal;
         }
 
+        // Record the move only once it has been played, so while PlayMove runs
+        // MoveCount and CurrentPlayer still describe the player making it. //
+        var result = PlayMove(placement);
         _history.Push(placement);
-        var result = rules.PlayMove(placement);
-        
+
         return result;
     }
+
+    /// <summary>
+    /// Any extra rule a game places on moves, beyond the cell being on the board
+    /// and empty (which <see cref="Play"/> has already checked).
+    /// </summary>
+    protected abstract bool IsLegal(Placement placement);
+
+    /// <summary>
+    /// Puts the move's piece on the board and decides what the move means for
+    /// the player who made it. Called by <see cref="Play"/> after the move has
+    /// been checked and before it is recorded in the history, so
+    /// <see cref="CurrentPlayer"/> is the player making this move.
+    /// </summary>
+    protected abstract MoveOutcome PlayMove(Placement placement);
 
     /// <summary>
     /// Reverses the last move made. Returns it, or null if there were no moves.
@@ -114,27 +129,27 @@ public abstract class Game
             return null;
         }
 
-        _boards[last.BoardIndex].UndoLastMove();
+        _boards[last.BoardIndex].RemovePiece(last.Row, last.Column);
         return last;
     }
 
     /// <summary>True if the placement names a real board and an empty cell on it.</summary>
-    private bool IsOnAnEmptyCell(Placement p)
+    private bool IsOnAnEmptyCell(Placement placement)
     {
-        if (p.BoardIndex < 0 || p.BoardIndex >= _boards.Length)
+        if (placement.BoardIndex < 0 || placement.BoardIndex >= _boards.Length)
         {
             return false;
         }
 
-        Board board = _boards[p.BoardIndex];
-        return board.IsInBounds(p.Row, p.Column) && board.GetCell(p.Row, p.Column) is null;
+        IBoard board = _boards[placement.BoardIndex];
+        return board.IsInBounds(placement.Row, placement.Column) && board.GetCell(placement.Row, placement.Column) is null;
     }
 
     /// <summary>
     /// Every straight run of <paramref name="length"/> cells on the board: across
     /// rows, down columns and along both diagonal directions.
     /// </summary>
-    protected static IEnumerable<(int Row, int Column)[]> Lines(Board board, int length)
+    protected static IEnumerable<(int Row, int Column)[]> Lines(IBoard board, int length)
     {
         (int Row, int Column)[] directions = { (0, 1), (1, 0), (1, 1), (1, -1) };
 
@@ -162,25 +177,51 @@ public abstract class Game
     // Commands (undo / redo) //
 
     /// <summary>
-    /// Plays the current player's move in the given cell by building and
-    /// executing a <see cref="MoveCommand"/>, then recording it on the undo
-    /// history. Returns <see cref="MoveOutcome.Illegal"/> (without changing
-    /// anything) if the move was not allowed. A fresh move retires any commands
-    /// that were waiting to be redone.
+    /// Plays the current player's turn: asks them for a move on this game's
+    /// boards, then plays it by building and executing a <see cref="MoveCommand"/>
+    /// and recording it on the undo history. An illegal move is reported and the
+    /// player is asked again. A fresh move retires any commands that were waiting
+    /// to be redone. Returns what the move meant for the player who made it.
     /// </summary>
-    // public MoveOutcome PlayMove(int row, int column, int boardIndex = 0)
-    // {
-    //     var command = new MoveCommand(this, row, column, boardIndex);
+    public MoveOutcome TakeTurn()
+    {
+        IPlayer player = CurrentPlayer;
 
-    //     if (!command.Execute())
-    //     {
-    //         return MoveOutcome.Illegal;
-    //     }
+        while (true)
+        {
+            Placement placement = player.GetMove(_boards);
+            var command = new MoveCommand(
+                this, placement.Row, placement.Column, placement.selectedNumber, placement.BoardIndex);
 
-    //     _undo.Push(command);
-    //     _redo.Clear();
-    //     return command.Outcome;
-    // }
+            if (!command.Execute())
+            {
+                Console.WriteLine($"({placement.Row}, {placement.Column}) can't be played. Try again.");
+                continue;
+            }
+
+            _undo.Push(command);
+            _redo.Clear();
+            Console.WriteLine($"{player} plays at ({placement.Row}, {placement.Column}).");
+            return command.Outcome;
+        }
+    }
+
+    /// <summary>
+    /// Draws every board to the console, numbering them when there is more than
+    /// one. A game can override this to draw itself differently.
+    /// </summary>
+    public virtual void Render()
+    {
+        for (int i = 0; i < _boards.Length; i++)
+        {
+            if (_boards.Length > 1)
+            {
+                Console.WriteLine($"Board {i}:");
+            }
+
+            Console.WriteLine(_boards[i]);
+        }
+    }
 
     /// <summary>True if there is a command that can be undone.</summary>
     public bool CanUndo => _undo.Count > 0;
@@ -252,9 +293,14 @@ public abstract class Game
             PlayerFactory.Create(PlayerKind.Human, state.PlayerTwo),
             state.BoardSize);
 
+        // Replay through the same path a live move takes (on the board, empty,
+        // legal, recorded in the history) so the rebuilt game matches the saved
+        // one. Every game type is a Game. //
+        Game replay = (Game)game;
+
         foreach (Placement placement in state.Moves)
         {
-            if (game.PlayMove(placement) == MoveOutcome.Illegal)
+            if (replay.Play(placement) == MoveOutcome.Illegal)
             {
                 throw new InvalidDataException($"The saved move {placement} is not legal.");
             }

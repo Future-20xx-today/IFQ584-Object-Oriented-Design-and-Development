@@ -20,19 +20,17 @@ public class Computer : PlayerBase, IPlayer
 
     /// <summary>
     /// Chooses the computer's next move: an immediately winning cell if it can
-    /// find one, otherwise a random empty cell.
+    /// find one, otherwise a random empty cell on a random board that has room.
     ///
     /// Assumes the game is not already over — that there is at least one empty
     /// cell — which the game loop checks before asking for a move.
     /// </summary>
-    public override Move GetMove(Board board)
+    public override Placement GetMove(IReadOnlyList<IBoard> boards)
     {
-        var cells = board.EmptyCells().ToList();
-
-        // The number is the board's next number, so the computer only chooses the
-        // cell. Look for a cell where playing it wins on the spot: it completes a
-        // line adding up to the target sum.
-        int number = board.NextNumber;
+        // Only a board with an empty cell can take a move.
+        int[] open = Enumerable.Range(0, boards.Count).Where(i => !boards[i].IsFull()).ToArray();
+        int boardIndex = open[Random.Shared.Next(open.Length)];
+        var cells = boards[boardIndex].EmptyCells().ToList();
 
         // TODO: Board.IsWinningMove no longer exists - win check moves to GameVariant //
         // foreach ((int row, int column) in cells)
@@ -43,9 +41,9 @@ public class Computer : PlayerBase, IPlayer
         //     }
         // }
 
-        // No winning cell, so play the number in a random empty cell.
+        // No winning cell, so play in a random empty cell. The game supplies the piece.
         (int Row, int Column) cell = cells[Random.Shared.Next(cells.Count)];
 
-        return new Move(cell.Row, cell.Column, number);
+        return new Placement(cell.Row, cell.Column, 0, boardIndex);
     }
 }

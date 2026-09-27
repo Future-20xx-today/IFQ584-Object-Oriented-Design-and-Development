@@ -28,11 +28,23 @@ public sealed class GameSettings
     {
     }
 
-    /// <summary>The smallest allowed board size (cells per side).</summary>
+    /// <summary>The smallest allowed Numerical board size (cells per side).</summary>
     public int MinBoardSize { get; } = 3;
 
-    /// <summary>The largest allowed board size (cells per side).</summary>
+    /// <summary>The largest allowed Numerical board size (cells per side).</summary>
     public int MaxBoardSize { get; } = 9;
+
+    /// <summary>
+    /// The smallest allowed Gomoku board (lines per side): just room for a line
+    /// of <see cref="GomokuGame.InRow"/>.
+    /// </summary>
+    public int GomokuMinBoardSize { get; } = GomokuGame.InRow;
+
+    /// <summary>The largest allowed Gomoku board (lines per side): a full Go board.</summary>
+    public int GomokuMaxBoardSize { get; } = 19;
+
+    /// <summary>The standard Gomoku board (lines per side).</summary>
+    public int GomokuDefaultBoardSize { get; } = 15;
 
     /// <summary>The default display name for the first (human) player.</summary>
     public string PlayerOneName { get; } = "Player 1";

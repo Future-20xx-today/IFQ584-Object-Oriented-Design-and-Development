@@ -3,10 +3,11 @@ namespace TicTacToe;
 /// <summary>
 /// Represents the Numerical Tic Tac Toe playing board.
 /// The board is a square grid of size n x n whose cells hold the numbers
-/// 1..n^2, and it owns the winning algorithm for the game (see
-/// <see cref="TargetSum"/> and <see cref="HasWinningLine()"/>).
+/// 1..n^2. It only holds pieces: it keeps no move history (that is the game's
+/// job), so a piece goes on with <see cref="PlacePiece"/> and comes off with
+/// <see cref="RemovePiece"/>.
 /// </summary>
-public class Board
+public class Board : IBoard
 {
     /// <summary>
     /// The grid of cells. Each cell holds a <see cref="Piece"/>,
@@ -15,24 +16,10 @@ public class Board
     private readonly Piece?[,] _cells;
 
     /// <summary>
-    /// Every move played on this board, in the order it was made. The array is
-    /// sized once to the most moves a game can hold (one per cell, n^2); only the
-    /// first <see cref="_moveCount"/> entries are in use. Filled by
-    /// <see cref="PlacePiece"/>.
-    /// </summary>
-    private readonly Move[] _moves;
-
-    /// <summary>
-    /// How many entries of <see cref="_moves"/> hold a real move so far.
-    /// </summary>
-    private int _moveCount;
-    public int MoveCount => _moveCount;
-
-    /// <summary>
     /// The size of the board (the number of cells along one side).
     /// Set once via the constructor and cannot be changed afterwards.
     /// </summary>
-    public readonly int Size;
+    public int Size { get; }
 
     /// <summary>
     /// The height of the board in cells. For a square board this equals Size.
@@ -43,20 +30,6 @@ public class Board
     /// The width of the board in cells. For a square board this equals Size.
     /// </summary>
     public int Width { get; }
-
-    /// <summary>
-    /// The moves played on this board so far, in order. Read-only: moves are
-    /// added only through <see cref="PlacePiece"/>. Only the moves actually
-    /// played are returned, not the unused tail of the backing array.
-    /// </summary>
-    public IReadOnlyList<Move> Moves => new ArraySegment<Move>(_moves, 0, _moveCount);
-
-    /// <summary>
-    /// The number the next move will place. Numbers are played in order and
-    /// shared between the players, so the next one is one more than the moves
-    /// made so far: the 1st move plays 1, the 2nd plays 2, and so on.
-    /// </summary>
-    public int NextNumber => _moveCount + 1;
 
     /// <summary>
     /// Creates a new square board of the given size. All cells start empty.
@@ -70,10 +43,6 @@ public class Board
         _cells = new Piece?[n, n];
         // A new Piece?[,] defaults every element to null,
         // so the board already starts empty.
-
-        // At most one move per cell can ever be played, so n^2 slots is enough
-        // for a whole game and the array never needs to grow.
-        _moves = new Move[n * n];
     }
 
     /// <summary>
@@ -103,43 +72,35 @@ public class Board
     }
 
     /// <summary>
-    /// Places a piece at the given row and column.
-    /// Returns true if the move was made, false if the cell was already taken.
+    /// Places a piece at the given row and column. The cell must be on the board
+    /// and empty; the game checks that before playing, so breaking it is a bug.
     /// </summary>
-    public bool PlacePiece(int row, int column, Piece piece)
+    /// <exception cref="ArgumentOutOfRangeException">The cell is off the board.</exception>
+    /// <exception cref="InvalidOperationException">The cell is already taken.</exception>
+    public void PlacePiece(int row, int column, Piece piece)
     {
-        if (!IsInBounds(row, column))
-        {
-            throw new ArgumentOutOfRangeException(
-                $"Cell ({row}, {column}) is outside the {Size}x{Size} board.");
-        }
-
         if (GetCell(row, column) != null)
         {
-            return false; // cell already occupied
+            throw new InvalidOperationException($"Cell ({row}, {column}) is already taken.");
         }
 
         _cells[row, column] = piece;
-        _moves[_moveCount++] = new Move(row, column, piece.Value);
-        return true;
     }
 
     /// <summary>
-    /// Takes the most recent move back off the board: clears its cell and drops
-    /// it from the move history. Returns the move that was undone, or null if no
-    /// moves have been played. Because numbers follow the move count, dropping the
-    /// last move also makes its number the next one to play again.
+    /// Takes the piece off the given row and column, leaving the cell empty. The
+    /// cell must hold a piece; the game only removes a move it played.
     /// </summary>
-    public Move? UndoLastMove()
+    /// <exception cref="ArgumentOutOfRangeException">The cell is off the board.</exception>
+    /// <exception cref="InvalidOperationException">The cell is already empty.</exception>
+    public void RemovePiece(int row, int column)
     {
-        if (_moveCount == 0)
+        if (GetCell(row, column) == null)
         {
-            return null;
+            throw new InvalidOperationException($"Cell ({row}, {column}) is already empty.");
         }
 
-        Move last = _moves[--_moveCount];
-        _cells[last.Row, last.Column] = null;
-        return last;
+        _cells[row, column] = null;
     }
 
     /// <summary>
